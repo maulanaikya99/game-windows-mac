@@ -1,13 +1,13 @@
-/* xinput9_1_0.dll / xinput1_3.dll pengganti untuk adaptor "Twin USB Joystick" (2563:0555).
+/* Replacement xinput9_1_0.dll / xinput1_3.dll for the "Twin USB Joystick" adapter (2563:0555).
  *
- * Wine memecah adaptor ini jadi dua perangkat HID (COL01 = port 1, COL02 = port 2), tapi
- * tidak menandainya sebagai gamepad XInput, dan jalur DirectInput game hanya membaca sebagian
- * tombol. DLL ini membaca kedua perangkat HID langsung lalu menyajikannya sebagai dua
- * controller XInput dengan tata letak PlayStation -> Xbox yang benar.
+ * Wine splits this adapter into two HID devices (COL01 = port 1, COL02 = port 2), but does
+ * not mark them as XInput gamepads, and the game's DirectInput path only reads some of the
+ * buttons. This DLL reads both HID devices directly and presents them as two XInput
+ * controllers with the correct PlayStation -> Xbox layout.
  *
- * Urutan HID pad (sama dengan mapping SDL di GoW3): tombol 1 Segitiga, 2 Bulat, 3 Silang,
- * 4 Kotak, 5 L1, 6 R1, 7 L2, 8 R2, 9 Select, 10 Start, 11 L3, 12 R3; sumbu X/Y stik kiri,
- * Z/Rz stik kanan, hat = D-pad. */
+ * Pad HID order (same as the SDL mapping in GoW3): button 1 Triangle, 2 Circle, 3 Cross,
+ * 4 Square, 5 L1, 6 R1, 7 L2, 8 R2, 9 Select, 10 Start, 11 L3, 12 R3; X/Y axes left stick,
+ * Z/Rz right stick, hat = D-pad. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <setupapi.h>
@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <wchar.h>
 
-/* TWIN_XINPUT_LOG=<file> -> catatan diagnosa ke file itu (game GUI tak punya stderr). */
+/* TWIN_XINPUT_LOG=<file> -> diagnostic log to that file (GUI games have no stderr). */
 static FILE *log_file;
 #define LOG(...) do { if (log_file) { fprintf(log_file, "twin-xinput: " __VA_ARGS__); fflush(log_file); } } while (0)
 
@@ -43,7 +43,7 @@ typedef struct { BYTE Type, SubType; WORD Flags; XINPUT_GAMEPAD Gamepad; XINPUT_
 typedef struct { BYTE BatteryType, BatteryLevel; } XINPUT_BATTERY_INFORMATION;
 typedef struct { WORD VirtualKey; WCHAR Unicode; WORD Flags; BYTE UserIndex, HidCode; } XINPUT_KEYSTROKE;
 
-/* Tombol HID 1..12 -> bit XInput (0 = tak dipakai; L2/R2 jadi trigger). */
+/* HID buttons 1..12 -> XInput bits (0 = unused; L2/R2 become triggers). */
 static const WORD button_map[13] = {
     0, XINPUT_GAMEPAD_Y, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_X,
     XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER, 0, 0,
@@ -74,7 +74,7 @@ static SHORT scale_axis(LONG v, LONG lo, LONG hi, BOOL invert)
     if (hi <= lo) return 0;
     double f = ((double)(v - lo) / (hi - lo)) * 2.0 - 1.0;   /* -1..1 */
     if (invert) f = -f;
-    if (f > -0.08 && f < 0.08) f = 0;                       /* zona mati tengah */
+    if (f > -0.08 && f < 0.08) f = 0;                       /* center dead zone */
     LONG r = (LONG)(f * 32767.0);
     if (r < -32768) r = -32768;
     if (r > 32767) r = 32767;
@@ -192,8 +192,8 @@ static BOOL CALLBACK do_init(INIT_ONCE *once, void *param, void **ctx)
     return TRUE;
 }
 
-/* Wine menambahkan perangkat HID beberapa saat setelah wineserver mulai, dan pad bisa
- * dicabut/dicolok ulang, jadi pindai lagi (paling sering tiap 2 detik) selama ada port kosong. */
+/* Wine adds HID devices a while after wineserver starts, and pads can be unplugged and
+ * replugged, so rescan (at most every 2 seconds) while a port is still empty. */
 static void scan_devices(void)
 {
     GUID hid_guid;
@@ -203,7 +203,7 @@ static void scan_devices(void)
     char buffer[sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W) + 1024 * sizeof(WCHAR)];
     SP_DEVICE_INTERFACE_DETAIL_DATA_W *detail = (void *)buffer;
 
-    LOG("pindai perangkat\n");
+    LOG("scanning devices\n");
     if (set == INVALID_HANDLE_VALUE) return;
     for (DWORD idx = 0; SetupDiEnumDeviceInterfaces(set, NULL, &hid_guid, idx, &iface); idx++)
     {
@@ -220,19 +220,19 @@ static void scan_devices(void)
                                 NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
         if (p->handle == INVALID_HANDLE_VALUE)
         {
-            LOG("port %d: CreateFile gagal %lu\n", port + 1, GetLastError());
+            LOG("port %d: CreateFile failed %lu\n", port + 1, GetLastError());
             p->handle = NULL;
             continue;
         }
         if (!HidD_GetPreparsedData(p->handle, &p->preparsed) ||
             HidP_GetCaps(p->preparsed, &p->caps) != HIDP_STATUS_SUCCESS)
         {
-            LOG("port %d: preparsed/caps gagal %lu\n", port + 1, GetLastError());
+            LOG("port %d: preparsed/caps failed %lu\n", port + 1, GetLastError());
             CloseHandle(p->handle);
             p->handle = NULL;
             continue;
         }
-        LOG("port %d terhubung: report %u B, tombol caps %u, nilai caps %u\n", port + 1,
+        LOG("port %d connected: report %u B, button caps %u, value caps %u\n", port + 1,
             p->caps.InputReportByteLength, p->caps.NumberInputButtonCaps, p->caps.NumberInputValueCaps);
         HidD_SetNumInputBuffers(p->handle, 64);
         setup_axes(p);
@@ -270,7 +270,7 @@ __declspec(dllexport) DWORD WINAPI XInputGetState(DWORD index, XINPUT_STATE *sta
     return ERROR_SUCCESS;
 }
 
-/* ordinal 100 (tanpa nama) di xinput1_3/1_4: sama dgn GetState, tombol Guide tak ada */
+/* ordinal 100 (unnamed) in xinput1_3/1_4: same as GetState, there is no Guide button */
 __declspec(dllexport) DWORD WINAPI XInputGetStateEx(DWORD index, XINPUT_STATE *state)
 {
     return XInputGetState(index, state);
@@ -310,7 +310,7 @@ __declspec(dllexport) DWORD WINAPI XInputGetDSoundAudioDeviceGuids(DWORD index, 
 __declspec(dllexport) DWORD WINAPI XInputGetBatteryInformation(DWORD index, BYTE type, XINPUT_BATTERY_INFORMATION *info)
 {
     if (!get_pad(index)) return ERROR_DEVICE_NOT_CONNECTED;
-    if (info) { info->BatteryType = 1; info->BatteryLevel = 3; }   /* kabel, penuh */
+    if (info) { info->BatteryType = 1; info->BatteryLevel = 3; }   /* wired, full */
     return ERROR_SUCCESS;
 }
 
@@ -319,9 +319,9 @@ __declspec(dllexport) DWORD WINAPI XInputGetKeystroke(DWORD index, DWORD reserve
     return ERROR_EMPTY;
 }
 
-/* Game (mis. UE5) mengurung kursor dgn ClipCursor -> tak bisa ke layar 2.
-   Tambal user32!ClipCursor & win32u!NtUserClipCursor jadi "return TRUE" (lepas kurungan).
-   TWIN_ALLOW_CLIP=1 -> biarkan asli. */
+/* Games (e.g. UE5) confine the cursor with ClipCursor -> it can't reach the 2nd screen.
+   Patch user32!ClipCursor & win32u!NtUserClipCursor to "return TRUE" (release the confinement).
+   TWIN_ALLOW_CLIP=1 -> leave them original. */
 static void patch_ret_true(const char *dll, const char *func)
 {
     static const BYTE code[] = { 0xb8, 0x01, 0x00, 0x00, 0x00, 0xc3 };   /* mov eax,1 ; ret */

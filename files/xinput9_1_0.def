@@ -1,4 +1,4 @@
-; Ordinal resmi xinput9_1_0
+; Official xinput9_1_0 ordinals
 LIBRARY xinput9_1_0
 EXPORTS
     XInputGetCapabilities @2

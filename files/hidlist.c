@@ -11,6 +11,6 @@ int main(void) {
         d->cbSize = sizeof(*d);
         if (SetupDiGetDeviceInterfaceDetailW(set, &i, d, sizeof(buf), NULL, NULL)) printf("%ls\n", d->DevicePath);
     }
-    printf("selesai, err=%lu\n", GetLastError());
+    printf("done, err=%lu\n", GetLastError());
     return 0;
 }

@@ -1,5 +1,5 @@
-; Ordinal resmi xinput1_3 (cocok juga 1_4/1_2/1_1 untuk 2-5,7,8). Game UE5 dll. mengimpor PER ORDINAL
-; (2=GetState, 3=SetState); tanpa .def zig memberi ordinal abjad -> salah fungsi -> crash.
+; Official xinput1_3 ordinals (also match 1_4/1_2/1_1 for 2-5,7,8). UE5 games etc. import BY ORDINAL
+; (2=GetState, 3=SetState); without a .def zig assigns alphabetical ordinals -> wrong function -> crash.
 LIBRARY xinput1_3
 EXPORTS
     XInputGetState @2

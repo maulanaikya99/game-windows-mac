@@ -1,6 +1,6 @@
-"""Cari pemanggil fungsi impor di exe PE x64 (lewat thunk jmp [rip] atau call [rip]).
-Pakai: uv run -q --with pefile --with numpy python -I find_import_calls.py <exe> <substring nama impor>...
-Contoh: ... NSUNSC.exe XInputGetState DirectInput8Create"""
+"""Find callers of imported functions in an x64 PE exe (via jmp [rip] thunks or call [rip]).
+Usage: uv run -q --with pefile --with numpy python -I find_import_calls.py <exe> <import name substring>...
+Example: ... NSUNSC.exe XInputGetState DirectInput8Create"""
 import sys, struct, pefile
 import numpy as np
 pe = pefile.PE(sys.argv[1], fast_load=True)
@@ -22,8 +22,8 @@ dst = rva0 + pos + 4 + d
 for tgt, name in targets.items():
     for h in np.nonzero(dst == tgt)[0]:
         op = bytes(data[h-2:h])
-        print(name, 'ref di', hex(base + rva0 + h - 2), op.hex())
-        if op == b'\xff\x25':  # thunk: cari call rel32 ke thunk
+        print(name, 'ref at', hex(base + rva0 + h - 2), op.hex())
+        if op == b'\xff\x25':  # thunk: find call rel32 to the thunk
             thunk = rva0 + h - 2
             for c in np.nonzero((dst == thunk))[0]:
-                if data[c-1] == 0xE8: print('   dipanggil dari', hex(base + rva0 + c - 1))
+                if data[c-1] == 0xE8: print('   called from', hex(base + rva0 + c - 1))
