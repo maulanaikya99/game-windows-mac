@@ -1,24 +1,29 @@
 # game-windows-mac
 
-Skill Claude Code untuk menjalankan game PC Windows di Mac Apple Silicon (M4) memakai
-Wine 11 (Whisky Libraries) + DXMT (DirectX 11 → Metal), lengkap dengan DLL XInput untuk
-2 stick "Twin", launcher `.app` sekali klik, dan alat bantu analisis exe.
+A Claude Code skill for running Windows PC games on Apple Silicon Macs (tested on M4) using
+Wine 11 (Whisky Libraries) + DXMT (DirectX 11 → Metal). It builds a self-contained game folder
+with a one-click `.app` launcher, a custom XInput DLL for two "Twin" gamepads, and includes
+helper tools for inspecting Windows executables.
 
-Terbukti pada Naruto x Boruto Storm Connections (60 FPS, 2 pemain) dan Demon Slayer HC2 (UE5).
+Proven on Naruto x Boruto Ultimate Ninja Storm Connections (60 FPS, local 2-player) and
+Demon Slayer: Hinokami Chronicles 2 (Unreal Engine 5).
 
-## Pasang
+## Install
 
 ```bash
 git clone https://github.com/maulanaikya99/game-windows-mac ~/.claude/skills/game-windows-mac
 ```
 
-Lalu di Claude Code: `/game-windows-mac` atau "main game windows X di mac".
+Then in Claude Code run `/game-windows-mac`, or just ask "run Windows game X on my Mac".
 
-## Isi
+## Contents
 
-- `SKILL.md` – resep & pemecahan masalah
-- `new_game.sh` – buat paket game satu folder (ekstrak, prefix Wine, DXMT, XInput, launcher)
-- `files/` – sumber C launcher, DLL XInput Twin, alat uji HID
-- `tools/` – skrip Python untuk membongkar exe (disasm, impor, ikon)
+- `SKILL.md` – the recipe and troubleshooting notes (written in Indonesian)
+- `new_game.sh` – creates a game package: extracts the game, sets up the Wine prefix, installs DXMT and XInput, builds the launcher
+- `files/` – C sources for the launcher, the Twin XInput DLL, and an HID test tool
+- `tools/` – Python scripts for analyzing exes (disassembly, import calls, icon extraction)
 
-Catatan: path default mengarah ke SSD `/Volumes/ikya MSI`; sesuaikan untuk Mac lain.
+## Notes
+
+- Default paths point to an external SSD at `/Volumes/ikya MSI`; adjust them for your setup.
+- Requires macOS on Apple Silicon, Xcode command line tools (clang), and Python 3.
