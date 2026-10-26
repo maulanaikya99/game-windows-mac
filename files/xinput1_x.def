@@ -1,0 +1,12 @@
+; Ordinal resmi xinput1_3 (cocok juga 1_4/1_2/1_1 untuk 2-5,7,8). Game UE5 dll. mengimpor PER ORDINAL
+; (2=GetState, 3=SetState); tanpa .def zig memberi ordinal abjad -> salah fungsi -> crash.
+LIBRARY xinput1_3
+EXPORTS
+    XInputGetState @2
+    XInputSetState @3
+    XInputGetCapabilities @4
+    XInputEnable @5
+    XInputGetDSoundAudioDeviceGuids @6
+    XInputGetBatteryInformation @7
+    XInputGetKeystroke @8
+    XInputGetStateEx @100 NONAME
