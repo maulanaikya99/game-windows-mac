@@ -1,4 +1,4 @@
-# game-windows-mac
+# Porting game-windows-mac (Claude Code skill)
 
 A Claude Code skill for running Windows PC games on Apple Silicon Macs (tested on M4) using
 Wine 11 (Whisky Libraries) + DXMT (DirectX 11 → Metal). It builds a self-contained game folder
@@ -18,7 +18,7 @@ Then in Claude Code run `/game-windows-mac`, or just ask "run Windows game X on 
 
 ## Contents
 
-- `SKILL.md` – the recipe and troubleshooting notes (written in Indonesian)
+- `SKILL.md` – the recipe and troubleshooting notes
 - `new_game.sh` – creates a game package: extracts the game, sets up the Wine prefix, installs DXMT and XInput, builds the launcher
 - `files/` – C sources for the launcher, the Twin XInput DLL, and an HID test tool
 - `tools/` – Python scripts for analyzing exes (disassembly, import calls, icon extraction)
