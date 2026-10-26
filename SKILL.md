@@ -21,6 +21,8 @@ PS4 games (eboot.bin) are NOT for this skill; see the spartanport-gow3 memory.
    installs DXMT, sets registry for the Twin gamepads + free cursor, compiles & installs the Twin XInput DLL (if the exe
    imports xinput*), and creates `Main <Name>.command` and `<Name>.app` (C launcher + exe icon + codesign).
    The exe is guessed automatically (largest, not setup/unins/crash/launcher), so check the `== exe:` line.
+   Other Macs/drives: set `GAME_DRIVE="/Volumes/<Drive>"` (default `/Volumes/ikya MSI`) and optionally `ZIG=/path/to/zig`
+   (falls back to `zig` on PATH; without zig the Twin XInput DLL is skipped).
 3. Test: run the `.command` in the background, wait ~40 s, check `Logs/run-*.log`
    ("Using feature level D3D_FEATURE_LEVEL_11_0" = DXMT is active) and `pgrep -f 'NSUNSC\.exe'`-style.
    `screencapture` is NOT allowed → ask the user to look at the screen.

@@ -3,7 +3,11 @@
 #
 #   new_game.sh "Game Name" <file.zip|file.rar|game-folder> [relative/path/to/game.exe]
 #
-# Output: /Volumes/ikya MSI/Games/<Game Name>/
+# Settings (environment variables, optional):
+#   GAME_DRIVE  drive/folder that holds Games/ (default: /Volumes/ikya MSI)
+#   ZIG         path to zig, used to build the XInput DLL (default: $GAME_DRIVE/application/zig/zig, then zig on PATH)
+#
+# Output: $GAME_DRIVE/Games/<Game Name>/
 #   Game/  Wine/Libraries/  Wine Prefix/  Logs/  Main <Game Name>.command  <Game Name>.app
 set -e
 setopt null_glob
@@ -11,14 +15,14 @@ setopt null_glob
 NAME="$1"; SRC="$2"; EXE_REL="$3"
 [[ -n "$NAME" && -n "$SRC" ]] || { echo "usage: new_game.sh \"Game Name\" <zip|rar|folder> [relative exe]"; exit 1; }
 SKILL="${0:A:h}"
-SSD="/Volumes/ikya MSI"
+SSD="${GAME_DRIVE:-/Volumes/ikya MSI}"; SSD="${SSD%/}"
 P="$SSD/Games/$NAME"
-ZIG="$SSD/application/zig/zig"
+ZIG="${ZIG:-$SSD/application/zig/zig}"; [[ -x "$ZIG" ]] || ZIG="$(command -v zig || true)"
 RUNTIME_URL="https://github.com/frankea/Whisky/releases/download/v3.1.1/Libraries.tar.gz"
 RUNTIME_SHA="01f3a1b43b98065fe20c529c1023b61dd79a6d2ad93bba6040865f646481ccf3"
 TWIN_VIDPID="2563:0555"   # the user's "Twin USB Joystick" gamepad adapter
 
-[[ -d "$SSD" ]] || { echo "SSD $SSD is not mounted"; exit 1; }
+[[ -d "$SSD" ]] || { echo "$SSD not found (set GAME_DRIVE to your games drive/folder)"; exit 1; }
 mkdir -p "$P/Game" "$P/Logs" "$P/Wine"
 
 # 1. Game -----------------------------------------------------------------
@@ -155,7 +159,7 @@ P="$P"
 exec >> "\$HOME/Library/Logs/$BUNDLE_ID.log" 2>&1
 echo "=== \$(date)"
 if [[ ! -d "\$P" ]]; then
-  osascript -e 'display alert "SSD \"ikya MSI\" is not mounted" message "Plug in the SSD and open the app again."'
+  osascript -e 'display alert "\"${SSD:t}\" is not available" message "Connect the drive and open the app again."'
   exit 1
 fi
 if pgrep -f '[\\\\/]$EXE_RE' >/dev/null; then echo "already running"; exit 0; fi

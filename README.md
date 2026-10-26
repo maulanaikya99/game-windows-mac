@@ -15,6 +15,7 @@ git clone https://github.com/maulanaikya99/game-windows-mac ~/.claude/skills/gam
 ```
 
 Then in Claude Code run `/game-windows-mac`, or just ask "run Windows game X on my Mac".
+Tell Claude where your games drive is (or export `GAME_DRIVE`) if it is not `/Volumes/ikya MSI`.
 
 ## Contents
 
@@ -25,5 +26,10 @@ Then in Claude Code run `/game-windows-mac`, or just ask "run Windows game X on 
 
 ## Notes
 
-- Default paths point to an external SSD at `/Volumes/ikya MSI`; adjust them for your setup.
+- Choose where games are stored with `GAME_DRIVE` (default `/Volumes/ikya MSI`). Packages go to `$GAME_DRIVE/Games/<Name>`:
+  ```bash
+  GAME_DRIVE="/Volumes/MyDrive" ~/.claude/skills/game-windows-mac/new_game.sh "Game Name" ~/Downloads/game.zip
+  ```
+  An internal folder also works, e.g. `GAME_DRIVE="$HOME/WinGames"`.
+- The Twin XInput DLL is built with [zig](https://ziglang.org) (`brew install zig`); set `ZIG=/path/to/zig` or have `zig` on PATH. Without zig that step is skipped.
 - Requires macOS on Apple Silicon, Xcode command line tools (clang), and Python 3.
