@@ -6,7 +6,7 @@ with a one-click `.app` launcher, a custom XInput DLL for two "Twin" gamepads, a
 helper tools for inspecting Windows executables.
 
 Proven on Naruto x Boruto Ultimate Ninja Storm Connections (60 FPS, local 2-player) and
-Demon Slayer: Hinokami Chronicles 2 (Unreal Engine 5).
+Demon Slayer: Hinokami Chronicles 2 (Unreal Engine 5, 60 FPS).
 
 ## Install
 
