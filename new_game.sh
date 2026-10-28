@@ -120,6 +120,7 @@ fi
 CMD="$P/Main $NAME.command"
 cat > "$CMD" <<EOF
 #!/bin/zsh
+caffeinate -dimsu -w \$\$ &   # keep screensaver/screen lock away while playing (gamepad input doesn't count as macOS activity)
 # Launcher for $NAME (Wine 11 Whisky + DXMT). RENDERER=dxvk / wined3d to switch the graphics translator.
 P="$P"
 W="\$P/Wine/Libraries/Wine"

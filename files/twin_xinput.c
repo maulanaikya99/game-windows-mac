@@ -9,7 +9,10 @@
  * 4 Square, 5 L1, 6 R1, 7 L2, 8 R2, 9 Select, 10 Start, 11 L3, 12 R3; X/Y axes left stick,
  * Z/Rz right stick, hat = D-pad. */
 #define WIN32_LEAN_AND_MEAN
+#define COBJMACROS
 #include <windows.h>
+#include <mmdeviceapi.h>
+#include <audioclient.h>
 #include <setupapi.h>
 #include <hidsdi.h>
 #include <hidpi.h>
@@ -342,12 +345,121 @@ static void unclip_cursor(void)
     patch_ret_true("user32.dll", "ClipCursor");
 }
 
+/* Surround audio on a stereo Mac: Wine's CoreAudio driver accepts any channel count and CoreAudio
+   then plays only the first two channels, so everything on the center channel (character voices)
+   is lost. CRI Atom (e.g. Demon Slayer HC2) hits this twice:
+   - it renders through ISpatialAudioClient, which Wine turns into a 12-channel (7.1.4) stream ->
+     refuse ISpatialAudioClient, as Windows without Spatial Sound does;
+   - plain WASAPI: it asks IsFormatSupported for 7.1 in shared mode and Wine says S_OK -> answer
+     like Windows: S_FALSE with the (stereo) mix format, so the game downmixes itself.
+   Hooked via the exe's CoCreateInstance import, because IMMDevice::Activate and IAudioClient are
+   only reachable through their vtables. TWIN_ALLOW_SURROUND=1 -> leave audio alone. */
+static const CLSID clsid_mm_device_enumerator = {0xbcde0395, 0xe52f, 0x467c, {0x8e, 0x3d, 0xc4, 0x57, 0x92, 0x91, 0x69, 0x2e}};
+static const IID iid_mm_device_enumerator = {0xa95664d2, 0x9614, 0x4f35, {0xa7, 0x46, 0xde, 0x8d, 0xb6, 0x36, 0x17, 0xe6}};
+static const IID iid_spatial_audio_client = {0xbbf8e066, 0xaaaa, 0x49be, {0x9a, 0x4d, 0xfd, 0x2a, 0x85, 0x8e, 0xa2, 0x7f}};
+static const IID iid_audio_client = {0x1cb9ad4c, 0xdbfa, 0x4c32, {0xb1, 0x78, 0xc2, 0xf5, 0x68, 0xa7, 0x03, 0xb2}};
+static HRESULT (WINAPI *real_cocreate)(REFCLSID, IUnknown *, DWORD, REFIID, void **);
+static HRESULT (WINAPI *real_activate)(IMMDevice *, REFIID, DWORD, PROPVARIANT *, void **);
+static HRESULT (WINAPI *real_is_format_supported)(IAudioClient *, AUDCLNT_SHAREMODE, const WAVEFORMATEX *, WAVEFORMATEX **);
+static void (WINAPI *co_task_mem_free)(void *);
+static INIT_ONCE audio_once = INIT_ONCE_STATIC_INIT;
+
+static HRESULT WINAPI activate_hook(IMMDevice *dev, REFIID iid, DWORD ctx, PROPVARIANT *params, void **out)
+{
+    if (IsEqualIID(iid, &iid_spatial_audio_client))
+    {
+        if (out) *out = NULL;
+        return E_NOINTERFACE;
+    }
+    return real_activate(dev, iid, ctx, params, out);
+}
+
+static HRESULT WINAPI is_format_supported_hook(IAudioClient *client, AUDCLNT_SHAREMODE mode,
+                                               const WAVEFORMATEX *fmt, WAVEFORMATEX **closest)
+{
+    WAVEFORMATEX *mix;
+    if (mode == AUDCLNT_SHAREMODE_SHARED && fmt && closest && SUCCEEDED(IAudioClient_GetMixFormat(client, &mix)))
+    {
+        if (fmt->nChannels > mix->nChannels)
+        {
+            *closest = mix;
+            return S_FALSE;
+        }
+        co_task_mem_free(mix);
+    }
+    return real_is_format_supported(client, mode, fmt, closest);
+}
+
+static void patch_slot(void **slot, void *hook, void *real)
+{
+    DWORD old;
+    if (!VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &old)) return;
+    *(void **)real = *slot;
+    *slot = hook;
+    VirtualProtect(slot, sizeof(*slot), old, &old);
+}
+
+/* all of Wine's MMDevice objects share one vtable, and so do its audio clients: patch them once */
+static BOOL CALLBACK hook_audio_vtables(INIT_ONCE *once, void *param, void **ctx)
+{
+    IMMDevice *dev;
+    IAudioClient *client;
+    if (FAILED(IMMDeviceEnumerator_GetDefaultAudioEndpoint((IMMDeviceEnumerator *)param, eRender, eConsole, &dev)))
+        return FALSE;   /* no output device yet: try again on the next enumerator */
+    if (SUCCEEDED(IMMDevice_Activate(dev, &iid_audio_client, CLSCTX_INPROC_SERVER, NULL, (void **)&client)))
+    {
+        patch_slot((void **)&client->lpVtbl->IsFormatSupported, is_format_supported_hook, &real_is_format_supported);
+        IAudioClient_Release(client);
+    }
+    patch_slot((void **)&dev->lpVtbl->Activate, activate_hook, &real_activate);
+    IMMDevice_Release(dev);
+    return TRUE;
+}
+
+static HRESULT WINAPI cocreate_hook(REFCLSID clsid, IUnknown *outer, DWORD ctx, REFIID iid, void **out)
+{
+    HRESULT hr = real_cocreate(clsid, outer, ctx, iid, out);
+    IMMDeviceEnumerator *en;
+    if (SUCCEEDED(hr) && IsEqualCLSID(clsid, &clsid_mm_device_enumerator) &&
+        SUCCEEDED(IUnknown_QueryInterface((IUnknown *)*out, &iid_mm_device_enumerator, (void **)&en)))
+    {
+        InitOnceExecuteOnce(&audio_once, hook_audio_vtables, en, NULL);
+        IMMDeviceEnumerator_Release(en);
+    }
+    return hr;
+}
+
+static void stereo_audio(void)
+{
+    char v[8];
+    if (GetEnvironmentVariableA("TWIN_ALLOW_SURROUND", v, sizeof(v)) && v[0] == '1') return;
+    HMODULE ole = GetModuleHandleA("ole32.dll");
+    void *target = ole ? (void *)GetProcAddress(ole, "CoCreateInstance") : NULL;
+    co_task_mem_free = ole ? (void *)GetProcAddress(ole, "CoTaskMemFree") : NULL;
+    if (!co_task_mem_free) return;
+    BYTE *base = (BYTE *)GetModuleHandleA(NULL);
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    IMAGE_DATA_DIRECTORY *dir = &nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (!target || !dir->VirtualAddress) return;
+    real_cocreate = target;
+    for (IMAGE_IMPORT_DESCRIPTOR *imp = (void *)(base + dir->VirtualAddress); imp->Name; imp++)
+        for (IMAGE_THUNK_DATA *t = (void *)(base + imp->FirstThunk); t->u1.Function; t++)
+        {
+            DWORD old;
+            if ((void *)t->u1.Function != target ||
+                !VirtualProtect(&t->u1.Function, sizeof(t->u1.Function), PAGE_READWRITE, &old)) continue;
+            t->u1.Function = (ULONG_PTR)cocreate_hook;
+            VirtualProtect(&t->u1.Function, sizeof(t->u1.Function), old, &old);
+        }
+}
+
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
 {
     if (reason == DLL_PROCESS_ATTACH)
     {
         DisableThreadLibraryCalls(inst);
         unclip_cursor();
+        stereo_audio();
     }
     return TRUE;
 }

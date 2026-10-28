@@ -62,6 +62,18 @@ Run the Python tools with: `uv run -q --with pefile --with capstone --with numpy
   `user32!ClipCursor` + `win32u!NtUserClipCursor` to return TRUE when loaded (disable: env `TWIN_ALLOW_CLIP=1`).
   UE games: also add `Saved/Config/Windows/Input.ini` → `[/Script/Engine.InputSettings]` DefaultViewportMouseLockMode=DoNotLock.
   Note: the patch only works if the game loads the Twin xinput DLL (imports xinput).
+- No character voices (music & SFX fine) = center channel lost: the game opens a surround stream
+  (Spatial Audio 7.1.4 or WASAPI 7.1) and CoreAudio plays only the first 2 channels on the stereo Mac.
+  Check: `WINEDEBUG=warn+all,trace+coreaudio,trace+mmdevapi` → `SAC_ActivateSpatialAudioStream` or
+  `final: mChannelsPerFrame: 8/12`. The Twin DLL fixes this automatically (Demon Slayer HC2 / CRI Atom, 27 Oct 2026):
+  it refuses `ISpatialAudioClient` and makes shared-mode `IsFormatSupported` answer like Windows
+  (S_FALSE + stereo mix format) for more channels than the device has → the game downmixes itself.
+  Disable: env `TWIN_ALLOW_SURROUND=1`. Same limitation: only when the game loads the Twin xinput DLL.
+- Xbox button icons while the user wants PlayStation ones (Twin = XInput to the game): look for an in-game
+  option first, otherwise a small exe patch (back up first) in the code that picks the icon set:
+  Naruto = Steam Input `GetInputTypeForHandle` (repack emu reports nothing → default Xbox; make the default PS),
+  UE5 Demon Slayer = compares the device id FString with "XInputController"/"DualShock4Controller"/… (send the
+  XInput branch to the DualShock4 branch). Details in the per-game memory notes (27 Oct 2026).
 - Games that import xinput BY ORDINAL (UE5): the DLL must be built with `files/xinput1_x.def` / `xinput9_1_0.def` (the script does this).
   Symptom if wrong: ACCESS_VIOLATION crash in XINPUT1_3+0x17xx.
 - UE5 games (folder `Binaries/Win64/D3D12`): launch with `-dx11` (DXMT can't do D3D12). The script's "D3D9" warning = false detection.
